@@ -81,8 +81,7 @@ struct ContentView: View {
                     
                     Section(header: Text("设置")) {
                         // 背景更新：用 "arrow.triangle.2.circlepath" (循环更新)
-                        // ⚠️ 注意：这里你需要新增一个 binding key，比如 .autoUpdate
-                        ToggleRow(icon: "arrow.triangle.2.circlepath", color: .blue, title: "背景更新", subtitle: "自动更新广告过滤器", isOn: .constant(false))
+                        ToggleRow(icon: "arrow.triangle.2.circlepath", color: .blue, title: "背景更新", subtitle: "自动更新广告过滤器", isOn: binding(for: .autoUpdate))
                     }
                 }
                 .listStyle(InsetGroupedListStyle())

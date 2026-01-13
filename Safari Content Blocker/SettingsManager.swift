@@ -26,6 +26,7 @@ class SettingsManager: ObservableObject {
     
     // 定义功能的 Key
     enum Keys: String {
+        // 功能
         case blockAds = "blockAds"
         case blockAdult = "blockAdult" // 需要域名列表
         case hideCookies = "hideCookies"
@@ -37,6 +38,9 @@ class SettingsManager: ObservableObject {
         case blockMalice = "blockMalice"
         case blockPopups = "blockPopups" // 拦截弹窗/自动跳转
         case blockComments = "blockComments"
+        
+        // 设置
+        case autoUpdate = "autoUpdate"
     }
     
     // 通用的获取和保存方法

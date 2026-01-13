@@ -10,6 +10,15 @@ import SwiftData
 
 @main
 struct Safari_Content_BlockerApp: App {
+    
+    @Environment(\.scenePhase) var scenePhase
+    
+    // 使用 init 进行注册，这是官方推荐的时机
+    init() {
+        BackgroundTaskManager.shared.register()
+    }
+    
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -28,5 +37,12 @@ struct Safari_Content_BlockerApp: App {
             ContentView()
         }
         .modelContainer(sharedModelContainer)
+        // 监听 App 状态变化
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background {
+                // 当用户切到后台时，安排下一次更新
+                BackgroundTaskManager.shared.scheduleAppRefresh()
+            }
+        }
     }
 }
