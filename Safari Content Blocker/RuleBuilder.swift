@@ -14,25 +14,25 @@ class RuleBuilder {
     // EasyList 的下载地址
     let easyListURL = URL(string: "https://easylist.to/easylist/easylist.txt")!
     
+    // 定义成人网站列表的源地址 (这里使用 Steven Black 的 Porn 专供列表)
+    // ⚠️ 注意：这个文件可能很大 (几 MB)，下载和解析需要一点时间
+    let adultBlockListURL = URL(string: "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn/hosts")!
+    
     // 异步构建并保存规则
     func buildRules(settings: SettingsManager) {
         DispatchQueue.global(qos: .userInitiated).async {
-            // 1. 开始 Loading
+            // 开始 Loading
             settings.setLoading(true)
             
             var allRules: [[String: Any]] = []
             
-            // 1. 添加基础功能规则 (根据开关)
+            // 添加基础功能规则 (根据开关)
             allRules.append(contentsOf: self.generateBasicRules(settings: settings))
             
-            // 2. 处理广告拦截 (如果开启)
+            // 处理广告拦截 (如果开启)
             if settings.get(forKey: .blockAds) {
                 if let adRules = self.fetchAndParseEasyList() {
                     allRules.append(contentsOf: adRules)
-                    // 成功反馈 (仅当下载成功且规则数 > 0 时)
-                    if !adRules.isEmpty {
-                        settings.reportResult(title: "更新成功", message: "成功加载 \(adRules.count) 条广告拦截规则。")
-                    }
                 } else {
                     // 失败反馈已经在 fetchAndParseEasyList 内部调用了，这里只需确保 Loading 结束
                     settings.setLoading(false)
@@ -43,13 +43,30 @@ class RuleBuilder {
                 settings.setLoading(false)
             }
             
-            // 3. 写入共享文件
+            // 成人网站拦截 (如果开启)
+            if settings.get(forKey: .blockAdult) {
+                // 如果开启了广告拦截，已经下载了很多规则，这里需要限制一下数量防止超出 Safari 上限
+                // 如果是单独开启成人拦截，可以多放宽一些
+                let limit = settings.get(forKey: .blockAds) ? 10000 : 30000
+                
+                if let adultRules = self.fetchAndParseHosts(url: self.adultBlockListURL, limit: limit) {
+                    print("🔞 已加载成人网站规则: \(adultRules.count) 条")
+                    allRules.append(contentsOf: adultRules)
+                }
+            }
+            
+            // 写入共享文件
             self.saveRulesToSharedFile(rules: allRules)
             
             // 确保最后 Loading 消失 (如果上面没报成功/失败)
             if settings.isLoading {
                 settings.setLoading(false)
             }
+            
+            // 计算总数
+            let totalCount = allRules.count
+            let message = "规则更新完成。\n当前生效规则总数: \(totalCount)"
+            settings.reportResult(title: "更新成功", message: message)
         }
     }
     
@@ -71,6 +88,7 @@ class RuleBuilder {
         return rules
     }
     
+    // MARK: - EasyList
     private func fetchAndParseEasyList() -> [[String: Any]]? {
         print("⏳ 开始下载 EasyList...")
         
@@ -111,7 +129,7 @@ class RuleBuilder {
                 errorMsg = "无法下载规则。请确保网络连接正常。"
             }
             
-            SettingsManager.shared.reportResult(title: "更新失败", message: errorMsg)
+            SettingsManager.shared.reportResult(title: "EasyList更新失败", message: errorMsg)
             return nil
         }
         
@@ -144,6 +162,92 @@ class RuleBuilder {
         return rules
     }
     
+    // MARK: - Hosts 文件解析器
+    // 专门用于解析 "0.0.0.0 domain.com" 这种格式
+    private func fetchAndParseHosts(url: URL, limit: Int) -> [[String: Any]]? {
+        print("⏳ 开始下载成人网站列表...")
+        
+        // 复用之前的下载逻辑 (带超时控制)
+        var content: String?
+        var downloadError: Error?
+        
+        let semaphore = DispatchSemaphore(value: 0)
+        
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 30.0 // 文件较大，给 30 秒
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        
+        let session = URLSession.shared
+        let task = session.dataTask(with: request) { data, response, error in
+            if let error = error {
+                downloadError = error
+            } else if let data = data, let str = String(data: data, encoding: .utf8) {
+                content = str
+            }
+            semaphore.signal() // 任务结束，发送信号
+        }
+        task.resume()
+        
+        _ = semaphore.wait(timeout: .now() + 31)
+        
+        guard let fileContent = content else {
+            print("❌ 成人列表下载失败")
+            // 区分是超时还是无网络
+            let errorMsg: String
+            if let err = downloadError as NSError?, err.code == NSURLErrorTimedOut {
+                errorMsg = "下载超时 (30秒)。请检查网络状况。"
+            } else {
+                errorMsg = "无法下载规则。请确保网络连接正常。"
+            }
+            
+            SettingsManager.shared.reportResult(title: "Steven Black更新失败", message: errorMsg)
+            return nil
+        }
+        
+        print("✅ 列表下载完成，开始解析...")
+        
+        var rules: [[String: Any]] = []
+        let lines = fileContent.components(separatedBy: .newlines)
+        
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
+            
+            let parts = trimmed.components(separatedBy: .whitespaces)
+            
+            // 1. 获取域名部分
+            if let rawDomain = parts.last,
+               !rawDomain.isEmpty,
+               rawDomain != "0.0.0.0",
+               rawDomain != "127.0.0.1",
+               rawDomain != "localhost" {
+                
+                // 2. 核心修复：强制转小写
+                let domain = rawDomain.lowercased()
+                
+                // 3. 核心修复：检查是否只包含 ASCII 字符
+                // Safari 极其严格，如果包含中文或特殊符号会直接报错导致所有规则失效
+                if domain.canBeConverted(to: .ascii) {
+                    
+                    let rule: [String: Any] = [
+                        "action": ["type": "block"],
+                        "trigger": [
+                            "url-filter": ".*",
+                            // 注意：Safari 要求 if-domain 里的域名也必须是小写
+                            "if-domain": ["*\(domain)"]
+                        ]
+                    ]
+                    rules.append(rule)
+                }
+            }
+            
+            if rules.count >= limit { break }
+        }
+        
+        return rules
+    }
+    
+    // MARK: - 保存规则文件
     // 写入 JSON 到 App Group 目录
     private func saveRulesToSharedFile(rules: [[String: Any]]) {
         guard let url = SharedConfig.rulesFileURL else { return }
