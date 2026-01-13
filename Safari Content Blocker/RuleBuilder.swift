@@ -107,6 +107,57 @@ class RuleBuilder {
         if settings.get(forKey: .forceHTTPS) {
             rules.append(["action": ["type": "make-https"], "trigger": ["url-filter": ".*"]])
         }
+        
+        // 拦截自动弹窗/跳转
+        if settings.get(forKey: .blockPopups) {
+            // 规则 1: 拦截所有的弹窗资源 (这是最核心的)
+            // 修正: popup 属于 resource-type，不属于 load-type
+            let popupRule: [String: Any] = [
+                "action": ["type": "block"],
+                "trigger": [
+                    "url-filter": ".*",
+                    "resource-type": ["popup"]
+                ]
+            ]
+            rules.append(popupRule)
+            
+            // 规则 2: 拦截第三方的弹窗 (这是规则1的子集，其实有了规则1，这条是多余的，但为了演示正确写法)
+            // 如果你想更激进，可以拦截第三方脚本产生的弹窗
+            // 修正: 移除了无效的 sub_frame，将 popup 放入 resource-type
+            rules.append([
+                "action": ["type": "block"],
+                "trigger": [
+                    "url-filter": ".*",
+                    "load-type": ["third-party"],
+                    "resource-type": ["popup"]
+                ]
+            ])
+            
+            // 规则 2: 拦截跳转脚本
+            // 这是解决“三江阁”这类小说站跳转最有效的办法
+            // 原理：直接阻止 uaredirect.js 下载，网页会报 "uaredirect is not defined" 错误，从而无法跳转
+            // 针对 uaredirect.js (绝大多数盗版小说站都用这个)
+            rules.append([
+                "action": ["type": "block"],
+                "trigger": ["url-filter": ".*uaredirect\\.js.*"]
+            ])
+            
+            // 针对 common.js (有些站点混淆在这里)
+            // 注意：这可能会误杀，仅在必要时开启
+            // rules.append(["action": ["type": "block"], "trigger": ["url-filter": ".*common\\.js.*"]])
+            
+            // 针对百度统计/CNZZ (它们有时也包含跳转代码)
+            rules.append([
+                "action": ["type": "block"],
+                "trigger": ["url-filter": ".*hm\\.baidu\\.com.*"]
+            ])
+            rules.append([
+                "action": ["type": "block"],
+                "trigger": ["url-filter": ".*cnzz\\.com.*"]
+            ])
+        }
+         
+        
         // ... 可在此处扩展更多基础 CSS 隐藏规则 ...
         
         return rules

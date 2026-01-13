@@ -34,6 +34,8 @@ class SettingsManager: ObservableObject {
         case blockMiners = "blockMiners"
         case blockImages = "blockImages"
         case forceHTTPS = "forceHTTPS"
+        case blockMalice = "blockMalice"
+        case blockPopups = "blockPopups" // 拦截弹窗/自动跳转
     }
     
     // 通用的获取和保存方法

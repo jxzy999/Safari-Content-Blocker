@@ -67,8 +67,16 @@ struct ContentView: View {
                         ToggleRow(icon: "lock.shield.fill", color: .green, title: "强制采用 HTTPS", subtitle: "强制采用安全网站连接", isOn: binding(for: .forceHTTPS))
                         
                         // 安全上网：用 "checkmark.shield.fill" (安全盾牌)
-                        // ⚠️ 注意：这里你需要新增一个 binding key，比如 .safeBrowsing
-                        ToggleRow(icon: "checkmark.shield.fill", color: .green, title: "安全上网", subtitle: "拦截已知的恶意页面", isOn: .constant(true))
+                        ToggleRow(icon: "checkmark.shield.fill", color: .green, title: "安全上网", subtitle: "拦截已知的恶意页面", isOn: binding(for: .blockMalice))
+                        
+                        // 拦截自动弹窗
+                        ToggleRow(
+                                icon: "rectangle.stack.badge.person.crop.fill",
+                                color: .purple,
+                                title: "拦截自动弹窗",
+                                subtitle: "禁止网站自动打开新窗口或跳转",
+                                isOn: binding(for: .blockPopups)
+                            )
                     }
                     
                     Section(header: Text("设置")) {
