@@ -99,10 +99,16 @@ class RuleBuilder {
         var rules: [[String: Any]] = []
         
         if settings.get(forKey: .blockImages) {
-            rules.append(["action": ["type": "block"], "trigger": ["resource-type": ["image"]]])
+            rules.append(["action": ["type": "block"], "trigger": [
+                "url-filter": ".*",
+                "resource-type": ["image"]
+            ]])
         }
         if settings.get(forKey: .blockFonts) {
-            rules.append(["action": ["type": "block"], "trigger": ["resource-type": ["font"]]])
+            rules.append(["action": ["type": "block"], "trigger": [
+                "url-filter": ".*",
+                "resource-type": ["font"]
+            ]])
         }
         if settings.get(forKey: .forceHTTPS) {
             rules.append(["action": ["type": "make-https"], "trigger": ["url-filter": ".*"]])
@@ -139,7 +145,7 @@ class RuleBuilder {
             // 针对 uaredirect.js (绝大多数盗版小说站都用这个)
             rules.append([
                 "action": ["type": "block"],
-                "trigger": ["url-filter": ".*uaredirect\\.js.*"]
+                "trigger": ["url-filter": ".*uaredirect.*\\.js.*"]
             ])
             
             // 针对 common.js (有些站点混淆在这里)
@@ -155,8 +161,28 @@ class RuleBuilder {
                 "action": ["type": "block"],
                 "trigger": ["url-filter": ".*cnzz\\.com.*"]
             ])
+            
+            // 策略 A: 拦截目标域名 (直接把路堵死)
+            // 如果网页试图跳转到 m.sanjiangge.org，直接拦截请求
+            rules.append([
+                "action": ["type": "block"],
+                "trigger": [
+                    "url-filter": ".*m\\.sanjiangge\\.org.*"
+                ]
+            ])
+            
+            // 策略 B: 在该网站完全禁止加载外部 JS (核弹级)
+            // 对于小说站，这通常不会影响阅读，但能杀掉所有广告脚本和跳转脚本
+            rules.append([
+                "action": ["type": "block"],
+                "trigger": [
+                    "url-filter": ".*",
+                    "resource-type": ["script"], // 拦截所有脚本资源
+                    "if-domain": ["*sanjiangge.org"] // 仅针对三江阁生效
+                ]
+            ])
         }
-         
+        
         
         // ... 可在此处扩展更多基础 CSS 隐藏规则 ...
         
@@ -305,16 +331,36 @@ class RuleBuilder {
             return
         }
         
+        // 1. 创建一个可变的副本
+        var finalRules = rules
+        
+        // 2. 关键修复：处理空规则导致的 Error 6
+        // 如果数组为空，Safari 可能会因为“找不到有效规则”而报错。
+        // 我们添加一条“占位规则”，拦截一个不存在的域名，既满足了编译器，又不影响用户。
+        if finalRules.isEmpty {
+            let dummyRule: [String: Any] = [
+                "action": ["type": "block"],
+                "trigger": [
+                    "url-filter": "this-domain-does-not-exist-placeholder-123456",
+                    "if-domain": ["nonexistent.local"]
+                ]
+            ]
+            finalRules.append(dummyRule)
+            print("ℹ️ 规则列表为空，已添加占位规则以防止报错。")
+        }
+        
         do {
-            let data = try JSONSerialization.data(withJSONObject: rules, options: [])
+            // 3. 序列化并写入
+            let data = try JSONSerialization.data(withJSONObject: finalRules, options: [])
             try data.write(to: url)
-            print("✅ 规则已写入文件: \(url.path)")
+            print("✅ 规则已写入文件 (\(finalRules.count) 条): \(url.path)")
             
-            // 通知 Safari 重新加载
+            // 4. 通知 Safari 刷新
             SFContentBlockerManager.reloadContentBlocker(withIdentifier: extensionBundleID) { error in
                 if let err = error {
                     print("⚠️ Safari 刷新报错: \(err.localizedDescription)")
-                    print("可能原因: Bundle ID 不匹配，或扩展未在设置中开启。")
+                    // 这里的 Code=6 通常意味着 JSON 格式不对，或者 url-filter 写错了
+                    // 但加了占位规则后，只要占位规则格式正确，就不会报这个错了
                 } else {
                     print("🚀 Safari 拦截器已成功刷新")
                 }
