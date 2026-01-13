@@ -49,7 +49,7 @@ struct ContentView: View {
                         ToggleRow(icon: "rectangle.slash", color: .orange, title: "隐藏 Cookie 提示信息", subtitle: "去除烦人横幅广告", isOn: binding(for: .hideCookies))
                         
                         // 隐藏评论：用 "bubble.left.and.bubble.right.fill" (对话气泡)
-                        ToggleRow(icon: "bubble.left.and.bubble.right.fill", color: .blue, title: "隐藏文章评论", subtitle: "去除评论板块", isOn: .constant(false))
+                        ToggleRow(icon: "bubble.left.and.bubble.right.fill", color: .blue, title: "隐藏文章评论", subtitle: "去除评论板块", isOn: binding(for: .blockComments))
                         
                         // 拦截社交：用 "hand.thumbsup.fill" (点赞图标) 代表社交组件
                         ToggleRow(icon: "hand.thumbsup.fill", color: .blue, title: "拦截社交按钮", subtitle: "拦截社交媒体追踪", isOn: binding(for: .blockSocial))
@@ -82,7 +82,7 @@ struct ContentView: View {
                     Section(header: Text("设置")) {
                         // 背景更新：用 "arrow.triangle.2.circlepath" (循环更新)
                         // ⚠️ 注意：这里你需要新增一个 binding key，比如 .autoUpdate
-                        ToggleRow(icon: "arrow.triangle.2.circlepath", color: .blue, title: "背景更新", subtitle: "自动更新广告过滤器", isOn: .constant(true))
+                        ToggleRow(icon: "arrow.triangle.2.circlepath", color: .blue, title: "背景更新", subtitle: "自动更新广告过滤器", isOn: .constant(false))
                     }
                 }
                 .listStyle(InsetGroupedListStyle())

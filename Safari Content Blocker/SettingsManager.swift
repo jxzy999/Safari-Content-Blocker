@@ -36,6 +36,7 @@ class SettingsManager: ObservableObject {
         case forceHTTPS = "forceHTTPS"
         case blockMalice = "blockMalice"
         case blockPopups = "blockPopups" // 拦截弹窗/自动跳转
+        case blockComments = "blockComments"
     }
     
     // 通用的获取和保存方法
